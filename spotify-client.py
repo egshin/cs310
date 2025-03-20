@@ -13,20 +13,21 @@ import json
 lambda_client = boto3.client('lambda')
 
 # Load the Spotify credentials from config.ini
-config = configparser.ConfigParser()
-config.read('spotify-config.ini')
+configur = configparser.ConfigParser()
+configur.read('spotify-config.ini')
 
 # Spotify API credentials from config.ini
-SPOTIFY_CLIENT_ID = config.get('spotify', 'SPOTIFY_CLIENT_ID')
-SPOTIFY_CLIENT_SECRET = config.get('spotify', 'SPOTIFY_CLIENT_SECRET')
-SPOTIFY_REDIRECT_URI = config.get('spotify', 'SPOTIFY_REDIRECT_URI')
+SPOTIFY_CLIENT_ID = configur.get('spotify', 'SPOTIFY_CLIENT_ID')
+SPOTIFY_CLIENT_SECRET = configur.get('spotify', 'SPOTIFY_CLIENT_SECRET')
+SPOTIFY_REDIRECT_URI = configur.get('spotify', 'SPOTIFY_REDIRECT_URI')
 
 # Spotify OAuth URLs
 SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize'
 SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
+MODIFY_PLAYLIST_URL = configur.get('api_gateway', 'lambda_api_url')
 
 #permissions for what we can do to an app on our account
-SPOTIFY_SCOPE = 'user-library-read user-read-private playlist-modify-public playlist-modify-private'
+SPOTIFY_SCOPE = 'user-library-read user-read-private playlist-read-private playlist-modify-public playlist-modify-private'
 
 # Flask app to handle the redirect
 app = Flask(__name__)
@@ -54,6 +55,8 @@ def prompt():
     print("   0 => end")
     print("   1 => login")
     print("   2 => create a playlist")
+    print("   3 => modify a playlist")
+
    
 
     cmd = int(input())
@@ -148,8 +151,8 @@ def create_playlist(access_token):
     playlist_description = input("Enter playlist description: ")
     is_public = input("Should the playlist be public? (yes/no): ").strip().lower()
     public = True if is_public == "yes" else False
-    favorite_artist = input("Who is your favorite artist?")
-    n_songs = input("How many of their songs do you want in your playlist?")
+    favorite_artist = input("Who is your favorite artist? ")
+    n_songs = input("How many of their songs do you want in your playlist? ")
     n_songs = int(n_songs)
 
 
@@ -163,20 +166,57 @@ def create_playlist(access_token):
 
     }
 
+    
+    api = '/create_playlist'
+    url = MODIFY_PLAYLIST_URL + api
     try:
-        response = lambda_client.invoke(
-            FunctionName='createSpotifyPlaylist', 
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload)
-        )
+        response = requests.post(url, json=payload)
+        response_payload = response.json()
         
-        # Read the response and return it
-        response_payload = json.loads(response['Payload'].read().decode())
-        print(f"Playlist created successfully! ")
+        if response.status_code == 200:
+            print("Playlist Created Successfully!")
+        else:
+            print(f"Error: {response_payload}")  
         return response_payload
     except Exception as e:
         logging.error(f"Error calling Lambda: {str(e)}")
         return None
+def modify_playlist(access_token):
+    playlist_title = input("Enter the playlist title you want to modify: ")
+    track_uris_input = input("Enter song(s) (with artists, separated by a dash) that you want to add (comma separated): ")
+    
+    track_titles = []
+    for track in track_uris_input.split(','):
+        title_artist = track.strip().split(' - ')  # Assuming the format is "Song Title - Artist"
+        if len(title_artist) == 2:
+            track_titles.append({
+                'title': title_artist[0],
+                'artist': title_artist[1]
+            })
+        else:
+            print(f"Invalid track format: {track}. Skipping.")
+    
+    # Prepare payload to send to API Gateway
+    payload = {
+        "access_token": access_token,
+        "playlist_title": playlist_title,
+        "track_titles": track_titles
+    }
+    print(payload)
+    # Make the POST request to API Gateway
+    api = '/modify_playlist'
+    url = MODIFY_PLAYLIST_URL + api
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        # Parse the response body
+        response_data = response.json()
+        print(response_data)
+        
+    else:
+        print(f"Error with API call: {response.status_code} {response.text}")
+
+
+    return None
 
     
 
@@ -206,6 +246,11 @@ if __name__ == "__main__":
                     create_playlist(token)  
                 else:
                     print("Please log in first to create a playlist.")
+            elif cmd == 3:
+                if token:
+                    modify_playlist(token)  
+                else:
+                    print("Please log in first to create a playlist.")
 
             else:
                     print("Invalid option, please try again.")
@@ -214,6 +259,3 @@ if __name__ == "__main__":
         logging.error("**ERROR: An error occurred:")
         logging.error(e)
         sys.exit(0)
-
-
-   
