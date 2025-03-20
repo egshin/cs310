@@ -7,7 +7,7 @@ from configparser import ConfigParser
 def lambda_handler(event, context):
     try:
         print("**STARTING**")
-        print("**lambda: proj04_auth**")
+        print("**lambda: createPlaylist**")
 
         # Define the config file location
         config_file = 'spotify-config-lambda.ini'
@@ -21,15 +21,35 @@ def lambda_handler(event, context):
         spotify_client_id = configur.get('spotify', 'client_id')
         spotify_client_secret = configur.get('spotify', 'client_secret')
 
-        SPOTIFY_API_URL = config.get('spotify', 'SPOTIFY_API_URL')   
+        SPOTIFY_API_URL = configur.get('spotify', 'SPOTIFY_API_URL')   
         
           # Get access token from the event
-        access_token = event.get('access_token')
-        playlist_name = event.get('name') 
-        playlist_description = event.get('description') 
-        playlist_public = event.get('public')  
-        artist_name = event.get('artist_name')
-        n_songs = event.get('n_songs')
+        body = event.get('body')
+
+        # Check if 'body' is a string, and if so, parse it as JSON
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)  # Parse the string into a dictionary
+                print(f"Parsed body: {json.dumps(body)}")
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON: {str(e)}")
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps('Invalid JSON format in the body')
+                }
+        access_token = body.get('access_token')
+        print(access_token)
+        playlist_name = body.get('name') 
+        print(playlist_name)
+
+        playlist_description = body.get('description') 
+        print(playlist_description)
+        playlist_public = body.get('public')  
+        print(playlist_public)
+        artist_name = body.get('artist_name')
+        print(artist_name)
+        n_songs = body.get('n_songs')
+        print(n_songs)
 
     
         if not access_token:
@@ -38,11 +58,8 @@ def lambda_handler(event, context):
                 'body': json.dumps('Access token is missing')
             }
 
+    
        
-
-        # Spotify API endpoint to create a playlist
-        spotify_api_url = f'{SPOTIFY_API_URL}/users/{{user_id}}/playlists' 
-        print(spotify_api_url)       
         # Get user profile to retrieve user_id
         user_profile_url = f'{SPOTIFY_API_URL}/me'
         headers = {
@@ -60,7 +77,9 @@ def lambda_handler(event, context):
 
         user_data = user_profile_response.json()
         user_id = user_data['id']
-        
+        print(user_id)
+        create_playlist_url = f'{SPOTIFY_API_URL}/users/{user_id}/playlists'
+        print(f"Creating playlist at: {create_playlist_url}")
         # Create a new playlist
         playlist_data = {
             'name': playlist_name,
@@ -69,7 +88,7 @@ def lambda_handler(event, context):
         }
 
         # Create playlist for the user
-        create_playlist_url = spotify_api_url.format(user_id=user_id)
+        
         create_playlist_response = requests.post(create_playlist_url, headers=headers, json=playlist_data)
         
         if create_playlist_response.status_code != 201:
