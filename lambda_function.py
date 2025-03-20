@@ -21,7 +21,7 @@ def lambda_handler(event, context):
         spotify_client_id = configur.get('spotify', 'client_id')
         spotify_client_secret = configur.get('spotify', 'client_secret')
 
-        SPOTIFY_API_URL = config.get('spotify', 'SPOTIFY_API_URL')   
+        SPOTIFY_API_URL = configur.get('spotify', 'SPOTIFY_API_URL')   
         
           # Get access token from the event
         access_token = event.get('access_token')
